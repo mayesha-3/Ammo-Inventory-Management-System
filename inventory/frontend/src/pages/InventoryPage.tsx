@@ -1,72 +1,78 @@
 import { useEffect, useState } from "react";
+import * as api from "../services/api";
 
-// Mock API function - replace with your actual API call
+// Fetch ammo inventory from API
 const getAmmoInventory = async () => {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  return {
-    data: {
-      ammo: [
-        {
-          id: 1,
-          caliber: "9mm Parabellum",
-          quantity: 5000,
-          createdAt: "2025-01-21T10:30:00Z",
-          lastUpdated: "2025-01-21T10:30:00Z",
-        },
-        {
-          id: 2,
-          caliber: "5.56x45mm NATO",
-          quantity: 8500,
-          createdAt: "2025-01-20T14:15:00Z",
-          lastUpdated: "2025-01-20T14:15:00Z",
-        },
-        {
-          id: 3,
-          caliber: ".45 ACP",
-          quantity: 2300,
-          createdAt: "2025-01-19T09:00:00Z",
-          lastUpdated: "2025-01-20T16:45:00Z",
-        },
-        {
-          id: 4,
-          caliber: "7.62x51mm NATO",
-          quantity: 6200,
-          createdAt: "2025-01-18T11:20:00Z",
-          lastUpdated: "2025-01-19T13:30:00Z",
-        },
-        {
-          id: 5,
-          caliber: ".308 Winchester",
-          quantity: 3800,
-          createdAt: "2025-01-17T08:45:00Z",
-          lastUpdated: "2025-01-18T10:00:00Z",
-        },
-        {
-          id: 6,
-          caliber: "12 Gauge",
-          quantity: 4500,
-          createdAt: "2025-01-16T15:30:00Z",
-          lastUpdated: "2025-01-17T09:15:00Z",
-        },
-        {
-          id: 7,
-          caliber: ".40 S&W",
-          quantity: 1900,
-          createdAt: "2025-01-15T12:00:00Z",
-          lastUpdated: "2025-01-16T14:20:00Z",
-        },
-        {
-          id: 8,
-          caliber: ".22 LR",
-          quantity: 12000,
-          createdAt: "2025-01-14T10:10:00Z",
-          lastUpdated: "2025-01-15T11:30:00Z",
-        },
-      ],
-    },
-  };
+  try {
+    const res = await api.getAmmoInventory();
+    return res;
+  } catch (error) {
+    console.error("Failed to fetch inventory:", error);
+    // Fallback to mock data
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return {
+      data: {
+        ammo: [
+          {
+            id: 1,
+            caliber: "9mm Parabellum",
+            quantity: 5000,
+            createdAt: "2025-01-21T10:30:00Z",
+            lastUpdated: "2025-01-21T10:30:00Z",
+          },
+          {
+            id: 2,
+            caliber: "5.56x45mm NATO",
+            quantity: 8500,
+            createdAt: "2025-01-20T14:15:00Z",
+            lastUpdated: "2025-01-20T14:15:00Z",
+          },
+          {
+            id: 3,
+            caliber: ".45 ACP",
+            quantity: 2300,
+            createdAt: "2025-01-19T09:00:00Z",
+            lastUpdated: "2025-01-20T16:45:00Z",
+          },
+          {
+            id: 4,
+            caliber: "7.62x51mm NATO",
+            quantity: 6200,
+            createdAt: "2025-01-18T11:20:00Z",
+            lastUpdated: "2025-01-19T13:30:00Z",
+          },
+          {
+            id: 5,
+            caliber: ".308 Winchester",
+            quantity: 3800,
+            createdAt: "2025-01-17T08:45:00Z",
+            lastUpdated: "2025-01-18T10:00:00Z",
+          },
+          {
+            id: 6,
+            caliber: "12 Gauge",
+            quantity: 4500,
+            createdAt: "2025-01-16T15:30:00Z",
+            lastUpdated: "2025-01-17T09:15:00Z",
+          },
+          {
+            id: 7,
+            caliber: ".40 S&W",
+            quantity: 1900,
+            createdAt: "2025-01-15T12:00:00Z",
+            lastUpdated: "2025-01-16T14:20:00Z",
+          },
+          {
+            id: 8,
+            caliber: ".22 LR",
+            quantity: 12000,
+            createdAt: "2025-01-14T10:10:00Z",
+            lastUpdated: "2025-01-15T11:30:00Z",
+          },
+        ],
+      },
+    };
+  }
 };
 
 export default function AmmoPage() {
@@ -75,6 +81,10 @@ export default function AmmoPage() {
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("latest");
+  const [orderingItem, setOrderingItem] = useState<any>(null);
+  const [orderQuantity, setOrderQuantity] = useState<number>(1);
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState("");
 
   useEffect(() => {
     fetchAmmo();
@@ -99,6 +109,35 @@ export default function AmmoPage() {
     if (quantity > 2000)
       return { level: "Medium", color: "#eab308", bg: "#fef9c3" };
     return { level: "Low", color: "#ef4444", bg: "#fee2e2" };
+  };
+
+  const handleOrderAmmo = async () => {
+    if (!orderingItem || !orderQuantity || orderQuantity < 1) {
+      setError("Please enter a valid quantity");
+      return;
+    }
+
+    setOrderSubmitting(true);
+    setError("");
+    setOrderSuccess("");
+    
+    try {
+      await api.orderFromStock({
+        ammoId: orderingItem.id,
+        quantity: orderQuantity,
+      });
+      
+      setOrderSuccess(`Order placed for ${orderQuantity} rounds of ${orderingItem.caliber}! Pending admin approval.`);
+      setOrderingItem(null);
+      setOrderQuantity(1);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setOrderSuccess(""), 3000);
+    } catch (err: any) {
+      setError("Failed to place order: " + (err.message || "Unknown error"));
+    } finally {
+      setOrderSubmitting(false);
+    }
   };
 
   const filteredAndSortedAmmo = ammo
@@ -126,35 +165,43 @@ export default function AmmoPage() {
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(to bottom, #f0f9ff, #e0f2fe)",
-        padding: "24px",
+        backgroundImage: "url('/wp2706117.jpg') !important",
+        backgroundAttachment: "fixed",
+        backgroundSize: "cover",
+        padding: "0px, 0px",
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
         {/* Header */}
         <div
           style={{
-            background: "white",
+            background: "rgba(0, 0, 0, 0.85)",
             padding: "32px",
             borderRadius: "12px",
-            boxShadow: "0 4px 6px rgba(0,0,0,0.07)",
+            border: "3px solid white",
             marginBottom: "24px",
           }}>
           <h1
             style={{
-              fontSize: "32px",
+              fontSize: "36px",
               fontWeight: "700",
-              color: "#0c4a6e",
+              color: "#d4af37",
               margin: "0 0 8px 0",
               display: "flex",
               alignItems: "center",
               gap: "12px",
+              textShadow: "2px 2px 4px rgba(0,0,0,0.8)",
             }}>
             <span style={{ fontSize: "36px" }}>🎯</span>
             Ammunition Inventory
           </h1>
-          <p style={{ color: "#64748b", margin: 0 }}>
-            Comprehensive overview of all available ammunition types
+          <p
+            style={{
+              color: "#7cb342",
+              margin: 0,
+              textShadow: "1px 1px 2px rgba(0,0,0,0.8)",
+            }}>
+            Military Grade Inventory Management
           </p>
         </div>
 
@@ -322,6 +369,22 @@ export default function AmmoPage() {
               fontWeight: "500",
             }}>
             {error}
+          </div>
+        )}
+
+        {/* Success Message */}
+        {orderSuccess && (
+          <div
+            style={{
+              padding: "16px",
+              background: "#dcfce7",
+              border: "2px solid #86efac",
+              borderRadius: "8px",
+              marginBottom: "24px",
+              color: "#166534",
+              fontWeight: "500",
+            }}>
+            {orderSuccess}
           </div>
         )}
 
@@ -517,13 +580,190 @@ export default function AmmoPage() {
                         color: "#475569",
                         textAlign: "center",
                         fontWeight: "500",
+                        marginBottom: "12px",
                       }}>
                       ID: #{a.id}
                     </div>
+                    <button
+                      onClick={() => {
+                        setOrderingItem(a);
+                        setOrderQuantity(1);
+                      }}
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        background: "#0ea5e9",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                      }}
+                      onMouseOver={(e) =>
+                        (e.currentTarget.style.background = "#0284c7")
+                      }
+                      onMouseOut={(e) =>
+                        (e.currentTarget.style.background = "#0ea5e9")
+                      }>
+                      📦 Order Now
+                    </button>
                   </div>
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Order Modal */}
+        {orderingItem && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "rgba(0, 0, 0, 0.6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+              padding: "20px",
+            }}>
+            <div
+              style={{
+                background: "white",
+                borderRadius: "12px",
+                padding: "32px",
+                maxWidth: "500px",
+                width: "100%",
+                boxShadow: "0 20px 25px rgba(0,0,0,0.15)",
+              }}>
+              <h2
+                style={{
+                  fontSize: "24px",
+                  fontWeight: "700",
+                  color: "#0f172a",
+                  margin: "0 0 16px 0",
+                }}>
+                Order Ammunition
+              </h2>
+
+              <div
+                style={{
+                  background: "#f0f9ff",
+                  padding: "16px",
+                  borderRadius: "8px",
+                  marginBottom: "20px",
+                  borderLeft: "4px solid #0ea5e9",
+                }}>
+                <div
+                  style={{
+                    fontSize: "14px",
+                    color: "#64748b",
+                    marginBottom: "4px",
+                  }}>
+                  Selected Item
+                </div>
+                <div
+                  style={{
+                    fontSize: "20px",
+                    fontWeight: "700",
+                    color: "#0f172a",
+                  }}>
+                  {orderingItem.caliber}
+                </div>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#64748b",
+                    marginTop: "4px",
+                  }}>
+                  Available: {orderingItem.quantity.toLocaleString()} rounds
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "20px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    fontWeight: "600",
+                    color: "#374151",
+                  }}>
+                  Quantity to Order
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={orderingItem.quantity}
+                  value={orderQuantity}
+                  onChange={(e) =>
+                    setOrderQuantity(Math.max(1, parseInt(e.target.value) || 1))
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    border: "2px solid #e5e7eb",
+                    borderRadius: "8px",
+                    fontSize: "16px",
+                    boxSizing: "border-box",
+                  }}
+                />
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#64748b",
+                    marginTop: "4px",
+                  }}>
+                  Enter a number between 1 and{" "}
+                  {orderingItem.quantity.toLocaleString()}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                }}>
+                <button
+                  onClick={() => {
+                    setOrderingItem(null);
+                    setOrderQuantity(1);
+                  }}
+                  disabled={orderSubmitting}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    background: "#e5e7eb",
+                    color: "#374151",
+                    border: "none",
+                    borderRadius: "8px",
+                    fontWeight: "600",
+                    cursor: orderSubmitting ? "not-allowed" : "pointer",
+                    opacity: orderSubmitting ? 0.7 : 1,
+                  }}>
+                  Cancel
+                </button>
+                <button
+                  onClick={handleOrderAmmo}
+                  disabled={orderSubmitting}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    background: orderSubmitting ? "#9ca3af" : "#0ea5e9",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "8px",
+                    fontWeight: "600",
+                    cursor: orderSubmitting ? "not-allowed" : "pointer",
+                  }}>
+                  {orderSubmitting ? "Submitting..." : "Place Order"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

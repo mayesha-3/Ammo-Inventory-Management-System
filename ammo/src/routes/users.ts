@@ -286,7 +286,184 @@ app.openapi(getIssuancesRoute, async (c) => {
   }
 });
 
-// ---------------- Place Ammo Order ----------------
+// =============== GET MY ORDERS (User's own orders) ===============
+const getMyOrdersRoute = createRoute({
+  method: "get",
+  path: "/myorders",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            orders: z.array(
+              z.object({
+                id: z.number(),
+                caliber: z.string(),
+                quantity: z.number(),
+                status: z.string(),
+                createdAt: z.string(),
+              })
+            ),
+          }),
+        },
+      },
+      description: "List of user's orders",
+    },
+    401: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            error: z.string(),
+          }),
+        },
+      },
+      description: "Unauthorized",
+    },
+  },
+  tags: ["Orders"],
+  summary: "Get my orders",
+  description: "Get all orders placed by the authenticated user",
+  security: [{ cookieAuth: [] }],
+});
+
+app.openapi(getMyOrdersRoute, async (c) => {
+  try {
+    const user = c.get("user") as AuthUser;
+
+    const myOrders = await db
+      .select({
+        id: ammoOrders.id,
+        caliber: ammoOrders.caliber,
+        quantity: ammoOrders.quantity,
+        status: ammoOrders.status,
+        createdAt: ammoOrders.createdAt,
+      })
+      .from(ammoOrders)
+      .where(eq(ammoOrders.userId, user.userId))
+      .orderBy(ammoOrders.createdAt);
+
+    return c.json({
+      orders: myOrders.map((o) => ({
+        id: o.id,
+        caliber: o.caliber,
+        quantity: o.quantity,
+        status: o.status,
+        createdAt: o.createdAt.toISOString(),
+      })),
+    });
+  } catch (error) {
+    console.error("Get my orders error:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// =============== ORDER FROM EXISTING STOCK ===============
+const orderFromStockRoute = createRoute({
+  method: "post",
+  path: "/order/stock",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            ammoId: z.number().openapi({ example: 1 }),
+            quantity: z.number().min(1).openapi({ example: 100 }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            id: z.number(),
+            ammoId: z.number(),
+            caliber: z.string(),
+            quantity: z.number(),
+            status: z.string(),
+            createdAt: z.string(),
+          }),
+        },
+      },
+      description: "Order from stock placed successfully",
+    },
+    400: {
+      content: {
+        "application/json": {
+          schema: z.object({ error: z.string() }),
+        },
+      },
+      description: "Invalid request or ammo not found",
+    },
+    401: {
+      content: {
+        "application/json": {
+          schema: z.object({ error: z.string() }),
+        },
+      },
+      description: "Unauthorized",
+    },
+  },
+  tags: ["Orders"],
+  summary: "Order from existing stock",
+  description: "Place an order for ammunition in existing stock that will require admin approval",
+  security: [{ cookieAuth: [] }],
+});
+
+app.openapi(orderFromStockRoute, async (c) => {
+  try {
+    const user = c.get("user") as AuthUser;
+    const body = await c.req.json();
+
+    // Get the ammo item
+    const [ammo] = await db
+      .select()
+      .from(ammoInventory)
+      .where(eq(ammoInventory.id, body.ammoId));
+
+    if (!ammo) {
+      return c.json({ error: "Ammunition not found" }, 400);
+    }
+
+    // Create order with ammoId
+    const [newOrder] = await db
+      .insert(ammoOrders)
+      .values({
+        userId: user.userId,
+        ammoId: body.ammoId,
+        caliber: ammo.caliber,
+        quantity: body.quantity,
+        status: "pending",
+      })
+      .returning({
+        id: ammoOrders.id,
+        ammoId: ammoOrders.ammoId,
+        caliber: ammoOrders.caliber,
+        quantity: ammoOrders.quantity,
+        status: ammoOrders.status,
+        createdAt: ammoOrders.createdAt,
+      });
+
+    return c.json(
+      {
+        id: newOrder.id,
+        ammoId: newOrder.ammoId || 0,
+        caliber: newOrder.caliber,
+        quantity: newOrder.quantity,
+        status: newOrder.status,
+        createdAt: newOrder.createdAt.toISOString(),
+      },
+      201
+    );
+  } catch (error) {
+    console.error("Order from stock error:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// -------------------- Place Ammo Order (for items not in stock) --------------------
 const orderAmmoRoute = createRoute({
   method: "post",
   path: "/order",
@@ -491,7 +668,7 @@ app.openapi(
   }
 );
 
-// =============== UPDATE ORDER STATUS (Admin) ===============
+// =============== UPDATE ORDER STATUS (Admin) - with Stock Reduction ===============
 const updateOrderStatusRoute = createRoute({
   method: "patch",
   path: "/orders/:id",
@@ -501,6 +678,8 @@ const updateOrderStatusRoute = createRoute({
         "application/json": {
           schema: z.object({
             status: z.enum(["pending", "approved", "rejected", "completed"]),
+            issuedQuantity: z.number().optional(),
+            ammoId: z.number().optional(),
           }),
         },
       },
@@ -519,18 +698,26 @@ const updateOrderStatusRoute = createRoute({
       },
       description: "Order status updated",
     },
+    400: {
+      content: {
+        "application/json": {
+          schema: z.object({ error: z.string() }),
+        },
+      },
+      description: "Invalid request or insufficient stock",
+    },
     404: {
       content: {
         "application/json": {
           schema: z.object({ error: z.string() }),
         },
       },
-      description: "Order not found",
+      description: "Order or ammo not found",
     },
   },
   tags: ["Orders"],
   summary: "Update order status",
-  description: "Update the status of an ammunition order (admin only)",
+  description: "Update the status of an ammunition order. When approved, automatically reduces stock (admin only)",
   security: [{ cookieAuth: [] }],
 });
 
@@ -547,15 +734,72 @@ app.openapi(
       const id = c.req.param("id");
       const body = await c.req.json();
 
+      // Get current order
+      const [currentOrder] = await db
+        .select()
+        .from(ammoOrders)
+        .where(eq(ammoOrders.id, Number(id)));
+
+      if (!currentOrder) {
+        return c.json({ error: "Order not found" }, 404);
+      }
+
+      // If approving an order, reduce stock
+      if (body.status === "approved") {
+        const ammoId = body.ammoId;
+        const issuedQty = body.issuedQuantity || currentOrder.quantity;
+
+        if (!ammoId) {
+          return c.json({ error: "ammoId is required when approving orders" }, 400);
+        }
+
+        // Get current ammo inventory
+        const [ammo] = await db
+          .select()
+          .from(ammoInventory)
+          .where(eq(ammoInventory.id, ammoId));
+
+        if (!ammo) {
+          return c.json({ error: "Ammo not found" }, 404);
+        }
+
+        // Check if enough stock available
+        if (ammo.quantity < issuedQty) {
+          return c.json({ 
+            error: `Insufficient stock. Available: ${ammo.quantity}, Requested: ${issuedQty}` 
+          }, 400);
+        }
+
+        // Reduce stock
+        await db
+          .update(ammoInventory)
+          .set({ quantity: ammo.quantity - issuedQty })
+          .where(eq(ammoInventory.id, ammoId));
+
+        // Update order with issued quantity and ammoId
+        const result = await db
+          .update(ammoOrders)
+          .set({ 
+            status: body.status,
+            ammoId: ammoId,
+            issuedQuantity: issuedQty || currentOrder.quantity,
+          })
+          .where(eq(ammoOrders.id, Number(id)))
+          .returning();
+
+        return c.json({
+          id: result[0].id,
+          status: result[0].status,
+          message: `Order approved and stock reduced by ${issuedQty} rounds`,
+        });
+      }
+
+      // For other statuses, just update without stock changes
       const result = await db
         .update(ammoOrders)
         .set({ status: body.status })
         .where(eq(ammoOrders.id, Number(id)))
         .returning();
-
-      if (result.length === 0) {
-        return c.json({ error: "Order not found" }, 404);
-      }
 
       return c.json({
         id: result[0].id,

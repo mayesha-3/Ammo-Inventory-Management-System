@@ -29,13 +29,19 @@ export const getMyIssuances = () => API.get("/users/issuances");
 export const orderAmmo = (data: { caliber: string; quantity: number }) =>
   API.post("/users/order", data);
 
+// Order from existing stock
+export const orderFromStock = (data: { ammoId: number; quantity: number }) =>
+  API.post("/users/order/stock", data);
 
 // Admin can later fetch all orders
 export const getAllOrders = () => API.get("/users/orders");
 
+// Get user's own orders
+export const getMyOrders = () => API.get("/users/myorders");
+
 // Update order status
-export const updateOrderStatus = (orderId: number, status: string) =>
-  API.patch(`/users/orders/${orderId}`, { status });
+export const updateOrderStatus = (orderId: number, status: string, issuedQuantity?: number, ammoId?: number) =>
+  API.patch(`/users/orders/${orderId}`, { status, issuedQuantity, ammoId });
 
 //-------------------Get inventory------------
 export const getAmmoInventory = () => API.get("/users/inventory");
