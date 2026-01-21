@@ -70,3 +70,24 @@ export const issuances = pgTable("issuances", {
   quantity: integer("quantity").notNull(),
   issuedAt: timestamp("issued_at").defaultNow().notNull(),
 });
+
+//------------------------Orders-----------------
+export const ammoOrders = pgTable("ammo_orders", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  caliber: varchar("caliber", { length: 50 }).notNull(),
+  quantity: integer("quantity").notNull(),
+  status: text("status").default("pending").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+//-------------Guns----------------
+export const guns = pgTable("guns", {
+  gunId: serial("gun_id").primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  type: varchar("type", { length: 50 }).notNull(),
+  caliber: varchar("caliber", { length: 50 }).notNull(),
+  notes: text("notes"),
+});
