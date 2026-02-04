@@ -166,8 +166,9 @@ export default function AmmoPage() {
       style={{
         minHeight: "100vh",
         backgroundImage: "url('/wp2706117.jpg') !important",
-        backgroundAttachment: "fixed",
-        backgroundSize: "cover",
+        backgroundAttachment: "scroll",
+        backgroundSize: "auto",
+        backgroundRepeat: "repeat",
         padding: "0px, 0px",
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}>

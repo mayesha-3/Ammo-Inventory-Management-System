@@ -276,8 +276,9 @@ export default function Dashboard() {
     justifyContent: "center",
     padding: "0px, 0px",
     backgroundImage: "url('/wp2706117.jpg')",
-    backgroundAttachment: "fixed",
-    backgroundSize: "cover",
+    backgroundAttachment: "scroll",
+    backgroundSize: "auto",
+    backgroundRepeat: "repeat",
   }}
 >
   <div
@@ -334,8 +335,9 @@ export default function Dashboard() {
     <div
       style={{
         backgroundImage: "url('/wp2706117.jpg')",
-        backgroundAttachment: "fixed",
-        backgroundSize: "cover",
+        backgroundAttachment: "scroll",
+        backgroundSize: "auto",
+        backgroundRepeat: "repeat",
         minHeight: "100vh",
         padding: "24px",
         fontFamily: "system-ui, -apple-system, sans-serif",
